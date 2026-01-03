@@ -14,9 +14,8 @@ Key options:
     --window-sec 10      Window length in seconds (default: 10)
     --drop-last          Drop incomplete tail window
     --capacity 500       Max number of tracks N (default: 500)
-    --threshold 0.5      Detection threshold for LodeSTAR (fallback uses blob detection)
+    --threshold 0.5      Detection threshold for LodeSTAR
     --max-distance 10    Association gate in pixels
-    --model-path PATH    Optional path to a LodeSTAR model
     --per-window         Save each window as its own .npy (default saves one stacked [B,T,N,2] per video)
 
 Notes:
@@ -30,12 +29,11 @@ from pathlib import Path
 import numpy as np
 
 from .config import DTConfig
-from .pipeline import process_folder
+from .tracker import DeepTrackTracker
+from .io import load_video_640x480
+from .batching import window_video
 
 
-essential = (
-    ("folder", str, "Folder containing video files"),
-)
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,7 +49,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--band-low", type=float, default=0.7, help="Band-pass low cutoff Hz (default: 0.7)")
     p.add_argument("--band-high", type=float, default=2.5, help="Band-pass high cutoff Hz (default: 2.5)")
     p.add_argument("--filter-order", type=int, default=3, help="Butterworth filter order (default: 3)")
-    p.add_argument("--model-path", type=str, default=None, help="Optional path to LodeSTAR model")
     p.add_argument("--per-window", action="store_true", help="Save each window as its own .npy file")
     return p.parse_args()
 
@@ -59,15 +56,12 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    cfg = DTConfig(
-        bandpass=(args.band_low, args.band_high),
-        filter_order=args.filter_order,
-        window_sec=args.window_sec,
-        drop_last_window=args.drop_last,
+    # Build tracker with deeplay LodeSTAR
+    tracker = DeepTrackTracker(
+        n_transforms=4, 
+        lr=1e-4, # Note: lr is for model build, not used if loading a pretrained model
         capacity=args.capacity,
-        detection_threshold=args.threshold,
         max_distance=args.max_distance,
-        model_path=args.model_path,
     )
 
     save_dir = Path(args.save_dir)
@@ -76,7 +70,25 @@ def main():
     total_files = 0
     total_windows = 0
 
-    for path, windows in process_folder(args.folder, pattern=args.pattern, cfg=cfg, model=None):
+    for p in sorted(Path(args.folder).glob(args.pattern)):
+        path = str(p)
+        print(f"Processing file: {path}")
+        try:
+            # Full pipeline: load, preprocess, detect, track
+            tracks = tracker.infer_video(
+                video_path=path,
+                apply_preprocess=True,
+                bandpass=(args.band_low, args.band_high),
+                filter_order=args.filter_order,
+            )
+            # To estimate FPS for windowing, we need to load the video meta again or pass it through.
+            # For simplicity, we'll load it again here.
+            _, fps = load_video_640x480(path)
+            windows = window_video(tracks, fps=fps, window_sec=args.window_sec, drop_last=args.drop_last)
+        except Exception as e:
+            print(f"[WARN] Skipping {path}: {e}")
+            continue
+
         total_files += 1
         if not windows:
             print(f"File: {path} -> no windows")

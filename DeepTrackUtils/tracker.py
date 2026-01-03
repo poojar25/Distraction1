@@ -5,7 +5,7 @@ from scipy.optimize import linear_sum_assignment
 import cv2
 
 # DeepTrack (deeplay) import — required via requirements.txt
-import deeptrack.deeplay as dl  # type: ignore
+import deeplay as dl  # type: ignore
 
 
 ###############################
