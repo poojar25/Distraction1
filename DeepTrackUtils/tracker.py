@@ -34,8 +34,8 @@ class DeepTrackTracker:
         self.model = dl.LodeSTAR(n_transforms=n_transforms, optimizer=dl.Adam(lr=lr)).build()
         self._trainer = None
 
-    def _make_dataloader(self, training_dataset, batch_size: int = 8, shuffle: bool = True):
-        return dl.DataLoader(training_dataset, batch_size=batch_size, shuffle=shuffle)
+    def _make_dataloader(self, training_dataset, batch_size: int = 8, shuffle: bool = True, num_workers: int = 15):
+        return dl.DataLoader(training_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
 
     def _ensure_trainer(self, max_epochs: int = 200):
         if self._trainer is None:
@@ -47,14 +47,14 @@ class DeepTrackTracker:
         return self._trainer
 
     def train(self, training_dataset, batch_size: int = 8, shuffle: bool = True, max_epochs: int = 200):
-        dataloader = self._make_dataloader(training_dataset, batch_size=batch_size, shuffle=shuffle)
+        dataloader = self._make_dataloader(training_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=15)
         trainer = self._ensure_trainer(max_epochs=max_epochs)
         trainer.fit(self.model, dataloader)
         return self.model, trainer
 
     def evaluate(self, validation_dataset, batch_size: int = 8):
         """Minimal evaluation using deeplay DataLoader and model.evaluate if available."""
-        dataloader = self._make_dataloader(validation_dataset, batch_size=batch_size, shuffle=False)
+        dataloader = self._make_dataloader(validation_dataset, batch_size=batch_size, shuffle=False, num_workers=15)
         if hasattr(self.model, "evaluate"):
             try:
                 return self.model.evaluate(dataloader)
