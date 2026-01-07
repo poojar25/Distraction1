@@ -3,6 +3,7 @@ from typing import List, Tuple
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 import cv2
+import os
 
 # DeepTrack (deeplay) import — required via requirements.txt
 import deeplay as dl  # type: ignore
@@ -31,36 +32,50 @@ class DeepTrackTracker:
     ) -> None:
         self.capacity = capacity
         self.max_distance = max_distance
-        self.model = dl.LodeSTAR(n_transforms=n_transforms, optimizer=dl.Adam(lr=lr)).build()
-        self._trainer = None
 
-    def _make_dataloader(self, training_dataset, batch_size: int = 8, shuffle: bool = True, num_workers: int = 15):
-        return dl.DataLoader(training_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+        self.model = (
+            dl.LodeSTAR(
+                n_transforms=n_transforms,
+                optimizer=dl.Adam(lr=lr),
+            )
+            .build()
+        )
 
-    def _ensure_trainer(self, max_epochs: int = 200):
-        if self._trainer is None:
-            self._trainer = dl.Trainer(max_epochs=max_epochs)
-        else:
-            # update epochs if larger requested
-            if hasattr(self._trainer, "max_epochs") and max_epochs > getattr(self._trainer, "max_epochs"):
-                self._trainer.max_epochs = max_epochs
-        return self._trainer
+    def train(
+        self,
+        training_images,
+        batch_size: int = 8,
+        max_epochs: int = 200,
+        shuffle: bool = True,
+    ):
+        """
+        training_images: np.ndarray (N, H, W, C)
+        """
 
-    def train(self, training_dataset, batch_size: int = 8, shuffle: bool = True, max_epochs: int = 200):
-        dataloader = self._make_dataloader(training_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=15)
-        trainer = self._ensure_trainer(max_epochs=max_epochs)
-        trainer.fit(self.model, dataloader)
-        return self.model, trainer
+        self.model.fit(
+            training_images,
+            batch_size=batch_size,
+            max_epochs=max_epochs,
+        )
 
-    def evaluate(self, validation_dataset, batch_size: int = 8):
-        """Minimal evaluation using deeplay DataLoader and model.evaluate if available."""
-        dataloader = self._make_dataloader(validation_dataset, batch_size=batch_size, shuffle=False, num_workers=15)
-        if hasattr(self.model, "evaluate"):
-            try:
-                return self.model.evaluate(dataloader)
-            except Exception:
-                return {"status": "evaluate_failed"}
-        return {"status": "no_evaluate_method"}
+        return self.model
+
+    def evaluate(self, validation_images, batch_size: int = 8):
+        """
+        LodeSTAR has no true evaluation metric (self-supervised).
+        This simply runs inference sanity checks.
+        """
+        try:
+            preds, conf = self.model.predict(validation_images[:batch_size])
+            return {
+                "status": "ok",
+                "mean_confidence": float(conf.mean()),
+            }
+        except Exception as e:
+            return {
+                "status": "failed",
+                "error": str(e),
+            }
 
     def _detect_frame(self, frame: np.ndarray, threshold: float = 0.5) -> np.ndarray:
         """Detect points in a single frame using the LodeSTAR model. Fallback to blob detection if needed."""
@@ -127,6 +142,30 @@ class DeepTrackTracker:
             frames = frames * 2.0 - 1.0
         return self.detect(frames)
 
+    # --------------------------------------------------
+    # Save / Load
+    # --------------------------------------------------
+    def save_weights(self, path: str):
+        """
+        Save trained weights only.
+        """
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        self.model.save_weights(path)
+
+    def load_weights(self, path: str, rebuild: bool = True):
+        """
+        Load trained weights.
+
+        rebuild=True ensures architecture consistency.
+        """
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Weights not found: {path}")
+
+        if rebuild:
+            self.model = self._build_model()
+
+        self.model.load_weights(path)
+        return self.model
 
 ###############################
 # Detection and inference
