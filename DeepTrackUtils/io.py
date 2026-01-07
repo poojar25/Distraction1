@@ -37,15 +37,19 @@ def load_video_640x480(path: str, to_gray: bool = True) -> tuple[np.ndarray, flo
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
         # Ensure 640x480 (OpenCV reads as WxH)
         h, w = frame.shape[:2]
         if (h, w) != (480, 640):
-            frame = cv2.resize(frame, (640, 480), interpolation=cv2.INTER_AREA)
+            # resize will remove the color channel if it exists
+            if len(frame.shape) == 3:
+                frame = cv2.resize(frame, (640, 480), interpolation=cv2.INTER_AREA)
+            else:
+                frame = cv2.resize(frame, (640, 480), interpolation=cv2.INTER_AREA)
 
         frame = frame.astype(np.float32) / 255.0
-        frame = np.expand_dims(frame, axis=-1)  # [H, W, 1]
+        if to_gray:
+            frame = np.expand_dims(frame, axis=-1)  # [H, W, 1]
         frames.append(frame)
 
     cap.release()

@@ -6,7 +6,7 @@ def zscore_per_video(x: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     """
     Per-pixel z-score across time.
 
-    x: [T, H, W, 1]
+    x: [T, H, W, C]
     returns: same shape
     """
     mean = x.mean(axis=0, keepdims=True)
@@ -19,7 +19,7 @@ def normalize_minus1_1(x: np.ndarray, clip: bool = True) -> np.ndarray:
     """
     Scale entire video globally to [-1, 1] using min/max across all elements.
 
-    x: [T, H, W, 1]
+    x: [T, H, W, C]
     returns: same shape
     """
     x_min = x.min()
