@@ -35,9 +35,7 @@ def load_video_640x480(path: str, to_gray: bool = True) -> tuple[np.ndarray, flo
             break
         if to_gray:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        else:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
+            
         # Ensure 640x480 (OpenCV reads as WxH)
         h, w = frame.shape[:2]
         if (h, w) != (480, 640):

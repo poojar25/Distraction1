@@ -67,7 +67,7 @@ class DeepTrackTracker:
         """Detect points in a single frame using the LodeSTAR model. Fallback to blob detection if needed."""
         # Expect frame [H,W,C] in [-1,1]
         alpha = 0.1
-        cutoff = 0.90
+        cutoff = 0.8
         mode = "quantile" #quantile if objects are different sizes
         frame = np.ascontiguousarray(frame)
 
@@ -111,24 +111,24 @@ class DeepTrackTracker:
         Returns [T, N, 2] with N=self.capacity.
         """
         from .io import load_video_640x480
-        from .preprocess import (
-            detrend_per_pixel,
-            bandpass_per_pixel,
-            zscore_per_video,
-            normalize_minus1_1,
-        )
+        # from .preprocess import (
+        #     detrend_per_pixel,
+        #     bandpass_per_pixel,
+        #     zscore_per_video,
+        #     normalize_minus1_1,
+        # )
 
         frames, fps = load_video_640x480(video_path, to_gray=to_gray)  # [T,480,640,C] in [0,1]
-        if apply_preprocess:
-            # These are designed for single-channel so only apply to grayscale
-            if to_gray:
-                frames = detrend_per_pixel(frames)
-                frames = bandpass_per_pixel(frames, fs=fps, low=bandpass[0], high=bandpass[1], order=filter_order)
-            frames = zscore_per_video(frames, eps=zscore_eps)
-            frames = normalize_minus1_1(frames, clip=scale_clip)
-        else:
-            # scale [0,1] -> [-1,1]
-            frames = frames * 2.0 - 1.0
+        # if apply_preprocess:
+        #     # These are designed for single-channel so only apply to grayscale
+        #     if to_gray:
+        #         frames = detrend_per_pixel(frames)
+        #         frames = bandpass_per_pixel(frames, fs=fps, low=bandpass[0], high=bandpass[1], order=filter_order)
+        #     frames = zscore_per_video(frames, eps=zscore_eps)
+        #     frames = normalize_minus1_1(frames, clip=scale_clip)
+        # else:
+        #     # scale [0,1] -> [-1,1]
+        #     frames = frames * 2.0 - 1.0
         return self.detect(frames)
 
 
